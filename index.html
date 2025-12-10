@@ -16,11 +16,9 @@
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
     
     <style>
-        /* 터치 반응 속도 개선 및 드래그 방지 */
         body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
         .score-btn:active { transform: scale(0.95); }
         .bg-grass { background-color: #f0fdf4; }
-        /* 스무스한 애니메이션 */
         .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
     </style>
 </head>
@@ -57,23 +55,38 @@
     <div id="player-list" class="flex-1 overflow-y-auto p-3 space-y-3 pb-32 overscroll-contain">
         <div class="flex flex-col items-center justify-center h-64 text-gray-400">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600 mb-4"></div>
-            <p class="font-bold">스코어 카드 불러오는 중...</p>
+            <p class="font-bold">로딩중...</p>
         </div>
     </div>
 
     <nav class="bg-white border-t flex justify-around py-3 pb-8 sticky bottom-0 shadow-[0_-4px_15px_-3px_rgba(0,0,0,0.1)] z-50">
-        <div class="text-center text-green-700 cursor-pointer transform scale-105 transition-transform"><span class="text-2xl block mb-1">✍️</span><span class="text-xs font-bold">기록</span></div>
-        <div class="text-center text-gray-300 cursor-pointer hover:text-gray-500 transition-colors" onclick="alert('경기 종료 후 제공됩니다')"><span class="text-2xl block mb-1">🏆</span><span class="text-xs">랭킹</span></div>
-        <div class="text-center text-gray-300 cursor-pointer hover:text-gray-500 transition-colors" onclick="alert('관리자 전용입니다')"><span class="text-2xl block mb-1">⚙️</span><span class="text-xs">설정</span></div>
+        <div class="text-center text-green-700 cursor-pointer transform scale-105"><span class="text-2xl block mb-1">✍️</span><span class="text-xs font-bold">기록</span></div>
+        <div class="text-center text-gray-300 cursor-pointer hover:text-gray-500" onclick="alert('경기 종료 후 제공됩니다')"><span class="text-2xl block mb-1">🏆</span><span class="text-xs">랭킹</span></div>
+        <div class="text-center text-gray-500 cursor-pointer hover:text-green-700 transition-colors" onclick="openSettings()"><span class="text-2xl block mb-1">⚙️</span><span class="text-xs font-bold">설정</span></div>
     </nav>
+
+    <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4 transition-opacity duration-300">
+        <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-3">
+                <h2 class="text-xl font-bold text-gray-800">⚙️ 경기 설정</h2>
+                <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto space-y-6 px-1" id="settingsContent">
+                </div>
+
+            <div class="pt-4 mt-2 border-t flex gap-3">
+                <button onclick="closeSettings()" class="flex-1 py-3 rounded-xl bg-gray-100 font-bold text-gray-500 active:bg-gray-200">취소</button>
+                <button onclick="saveSettings()" class="flex-1 py-3 rounded-xl bg-green-600 font-bold text-white shadow-lg active:bg-green-700 active:scale-95 transition-transform">저장하기</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // ========================================================
-        // [설정] 선생님의 Firebase 설정값 (그대로 사용)
-        // ========================================================
+        // Firebase 설정
         const firebaseConfig = {
             apiKey: "AIzaSyDBxfI5ufgfTKYGgLSeoQXwv2_MsAj_n-w",
             authDomain: "golf-score-c61ad.firebaseapp.com",
@@ -86,20 +99,17 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 코스 데이터
         const COURSES = {
             hill: { name: "Hill Course", pars: [4, 4, 4, 3, 5, 4, 5, 3, 4, 4, 5, 3, 4, 4, 5, 4, 3, 4] },
             lake: { name: "Lake Course", pars: [4, 4, 3, 5, 4, 5, 4, 3, 4, 4, 5, 4, 4, 3, 4, 3, 5, 4] }
         };
 
-        // 전역 변수
         let currentHole = 1;
         let currentGroup = 0;
         let currentCourse = "hill";
         const matchId = "match_2025_05_20"; 
         let globalData = null;
 
-        // DB 연결
         const matchRef = doc(db, "matches", matchId);
         
         onSnapshot(matchRef, (docSnap) => {
@@ -115,7 +125,6 @@
             }
         });
 
-        // 초기 데이터 생성 (객체 구조 사용)
         async function createInitialData() {
             const initData = {
                 course: "hill",
@@ -138,15 +147,12 @@
             catch (e) { console.error("초기화 실패", e); }
         }
 
-        // UI 렌더링 함수
         window.renderUI = function() {
             if (!globalData) return;
-
             const parList = COURSES[currentCourse].pars;
             document.getElementById('currentHoleDisplay').innerText = `HOLE ${currentHole}`;
             document.getElementById('currentParDisplay').innerText = `Par ${parList[currentHole-1]}`;
 
-            // 탭 활성화 상태
             [0, 1, 2].forEach(idx => {
                 const btn = document.getElementById(`tab-${idx}`);
                 if(idx === currentGroup) {
@@ -158,8 +164,8 @@
 
             const listDiv = document.getElementById('player-list');
             listDiv.innerHTML = "";
-            
             const players = globalData.groups[currentGroup.toString()];
+            
             if(!players || players.length === 0) {
                 listDiv.innerHTML = "<div class='flex flex-col items-center justify-center h-40 text-gray-400'><span class='text-4xl mb-2'>🏌️</span><p>선수가 없습니다</p></div>";
                 return;
@@ -168,19 +174,14 @@
             players.forEach((player, pIndex) => {
                 const score = player.scores[currentHole-1];
                 const totalScore = player.scores.reduce((a,b)=>a+b, 0);
-                
-                const card = document.createElement('div');
-                card.className = "bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-3 relative overflow-hidden";
-                
-                // 점수별 색상 처리
                 let scoreColor = "text-gray-800"; 
                 if(score < 0) scoreColor = "text-blue-600";
                 if(score > 0) scoreColor = "text-red-500";
-                
-                // 점수 텍스트 처리 (0은 E로 표시하거나 그냥 0)
                 let scoreText = score > 0 ? `+${score}` : `${score}`;
-                if(score === 0) scoreText = "0"; // 파
+                if(score === 0) scoreText = "0";
 
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-3 relative overflow-hidden";
                 card.innerHTML = `
                     <div class="flex justify-between items-center mb-4 pl-1 pr-1">
                         <div class="flex items-center gap-3">
@@ -199,79 +200,66 @@
                             </span>
                         </div>
                     </div>
-                    
                     <div class="flex items-center justify-between bg-gray-50 rounded-xl p-1.5 border border-gray-200 shadow-inner">
-                        <button onclick="updateScore(${pIndex}, ${score - 1})" 
-                            class="w-14 h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 text-2xl font-bold text-gray-400 active:scale-95 active:bg-gray-100 active:text-blue-500 transition-all touch-manipulation">
-                            －
-                        </button>
-                        
-                        <div class="flex-1 text-center font-black text-3xl ${scoreColor} tabular-nums">
-                            ${scoreText}
-                        </div>
-                        
-                        <button onclick="updateScore(${pIndex}, ${score + 1})" 
-                            class="w-14 h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 text-2xl font-bold text-gray-400 active:scale-95 active:bg-gray-100 active:text-red-500 transition-all touch-manipulation">
-                            ＋
-                        </button>
+                        <button onclick="updateScore(${pIndex}, ${score - 1})" class="w-14 h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 text-2xl font-bold text-gray-400 active:scale-95 active:bg-gray-100 active:text-blue-500 transition-all touch-manipulation">－</button>
+                        <div class="flex-1 text-center font-black text-3xl ${scoreColor} tabular-nums">${scoreText}</div>
+                        <button onclick="updateScore(${pIndex}, ${score + 1})" class="w-14 h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 text-2xl font-bold text-gray-400 active:scale-95 active:bg-gray-100 active:text-red-500 transition-all touch-manipulation">＋</button>
                     </div>
                 `;
                 listDiv.appendChild(card);
             });
         };
 
-        // 점수 저장 함수 (상태 표시등 기능 추가)
         window.updateScore = async function(playerIndex, value) {
             if(!globalData) return;
-            
-            // 1. 즉시 화면 반영 (속도감 향상)
             globalData.groups[currentGroup.toString()][playerIndex].scores[currentHole-1] = value;
             renderUI(); 
-            
-            // 2. 상태 표시: 저장중 (노란색)
             const statusEl = document.getElementById('saveStatus');
             statusEl.innerText = "저장중..";
             statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-yellow-400 text-yellow-900 opacity-100 scale-100 shadow-sm";
-
             try {
-                // 3. 실제 DB 저장
                 await updateDoc(matchRef, { groups: globalData.groups });
-                
-                // 4. 저장 완료 (초록색) -> 1초 뒤 사라짐
                 statusEl.innerText = "저장됨 ✅";
                 statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-green-500 text-white opacity-100 scale-100 shadow-sm transition-all";
                 setTimeout(() => {
                     statusEl.className = "text-xs font-bold px-2 py-1 rounded opacity-0 scale-90 transition-all duration-500";
                 }, 1000);
-
             } catch(e) {
                 console.error("저장 실패", e);
                 statusEl.innerText = "오류! 🚫";
                 statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-red-600 text-white opacity-100 animate-pulse";
-                alert("인터넷 연결을 확인해주세요. 점수가 서버에 저장되지 않았습니다.");
             }
         };
 
-        window.changeHole = function(direction) {
-            const nextHole = currentHole + direction;
-            if(nextHole >= 1 && nextHole <= 18) {
-                currentHole = nextHole;
-                renderUI();
-                window.scrollTo(0,0);
-            }
+        window.changeHole = function(d) {
+            const next = currentHole + d;
+            if(next >= 1 && next <= 18) { currentHole = next; renderUI(); window.scrollTo(0,0); }
         };
-
-        window.selectGroup = function(groupIndex) {
-            currentGroup = groupIndex;
-            renderUI();
-        };
-
+        window.selectGroup = function(g) { currentGroup = g; renderUI(); };
         window.changeCourse = async function() {
-            const selected = document.getElementById('courseSelect').value;
-            currentCourse = selected;
-            renderUI();
-            await updateDoc(matchRef, { course: selected });
+            const sel = document.getElementById('courseSelect').value;
+            currentCourse = sel; renderUI(); await updateDoc(matchRef, { course: sel });
         }
-    </script>
-</body>
-</html>
+
+        // --- 설정 기능 함수들 ---
+        window.openSettings = function() {
+            if(!globalData) return alert("데이터를 불러오는 중입니다.");
+            const content = document.getElementById('settingsContent');
+            content.innerHTML = "";
+            
+            // 각 조별로 입력폼 생성
+            ["0", "1", "2"].forEach(groupId => {
+                const groupData = globalData.groups[groupId];
+                const groupDiv = document.createElement('div');
+                groupDiv.className = "bg-gray-50 p-4 rounded-xl border border-gray-200";
+                
+                let html = `<h3 class="font-bold text-gray-700 mb-2">${parseInt(groupId)+1}조 선수 관리</h3>`;
+                
+                // 선수 4명 슬롯 생성 (없으면 빈칸)
+                for(let i=0; i<4; i++) {
+                    const player = groupData[i] || { name: "", hcp: 0 };
+                    html += `
+                        <div class="flex gap-2 mb-2">
+                            <input type="text" placeholder="이름" value="${player.name}" id="name-${groupId}-${i}" 
+                                class="flex-grow rounded-lg border-gray-300 shadow-sm text-sm focus:border-green-500 focus:ring-green-500">
+                            <input type="number
