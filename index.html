@@ -116,4 +116,436 @@
                             </div>
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="setTempCourse('hill')" id="btn-hill
+                            <button onclick="setTempCourse('hill')" id="btn-hill" class="flex-1 py-2 rounded-lg border font-bold text-sm">HILL</button>
+                            <button onclick="setTempCourse('lake')" id="btn-lake" class="flex-1 py-2 rounded-lg border font-bold text-sm">LAKE</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="font-bold text-gray-700 mb-2 text-sm">참석자 조 배정</h3>
+                        <div id="matchListContainer" class="space-y-2">
+                            </div>
+                    </div>
+                </div>
+                <button onclick="saveMatchSetup()" class="mt-2 w-full py-3 rounded-xl bg-green-600 font-bold text-white shadow-lg shrink-0">
+                    경기 설정 적용하기
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // 선생님의 API Key
+        const firebaseConfig = {
+            apiKey: "AIzaSyDBxfI5ufgfTKYGgLSeoQXwv2_MsAj_n-w",
+            authDomain: "golf-score-c61ad.firebaseapp.com",
+            projectId: "golf-score-c61ad",
+            storageBucket: "golf-score-c61ad.firebasestorage.app",
+            messagingSenderId: "266282417748",
+            appId: "1:266282417748:web:d4c975ccb26c460d0bb7c1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const COURSES = {
+            hill: { name: "HILL 코스", pars: [4, 4, 4, 3, 5, 4, 5, 3, 4, 4, 5, 3, 4, 4, 5, 4, 3, 4] },
+            lake: { name: "LAKE 코스", pars: [4, 4, 3, 5, 4, 5, 4, 3, 4, 4, 5, 4, 4, 3, 4, 3, 5, 4] }
+        };
+
+        let currentHole = 1;
+        let currentGroup = 0;
+        let currentCourse = "hill";
+        const matchId = "match_v3_final"; // V3용 새 ID
+        
+        let globalData = null;
+        
+        // 설정창 임시 변수들
+        let tempMemberPool = []; // 회원등록용
+        let tempMatchMembers = []; // 경기설정용 (배정 상태 포함)
+        let tempCourse = "hill";
+        let tempDate = "";
+
+        const matchRef = doc(db, "matches", matchId);
+        
+        onSnapshot(matchRef, (docSnap) => {
+            if (docSnap.exists()) {
+                globalData = docSnap.data();
+                
+                // 코스 및 날짜 동기화
+                if(globalData.course && globalData.course !== currentCourse) {
+                    currentCourse = globalData.course;
+                    document.getElementById('headerCourseName').innerText = COURSES[currentCourse].name;
+                }
+                if(globalData.matchDate) {
+                    document.getElementById('headerDate').innerText = globalData.matchDate;
+                }
+
+                renderTabs();
+                renderUI();
+            } else {
+                createInitialData();
+            }
+        });
+
+        async function createInitialData() {
+            const today = new Date().toISOString().split('T')[0];
+            const initData = {
+                matchDate: today,
+                course: "hill",
+                memberPool: [], 
+                groups: {} 
+            };
+            try { await setDoc(matchRef, initData); } 
+            catch (e) { console.error("초기화 실패", e); }
+        }
+
+        // ============================
+        //  메인 UI 렌더링
+        // ============================
+        window.renderTabs = function() {
+            const container = document.getElementById('tabsContainer');
+            if(!globalData || !globalData.groups) return;
+
+            const groupKeys = Object.keys(globalData.groups).sort((a,b) => parseInt(a) - parseInt(b));
+            
+            if(groupKeys.length === 0) {
+                container.innerHTML = `<div class="flex-1 py-3 text-center text-gray-400 text-sm">설정에서 경기를 개설해주세요</div>`;
+                return;
+            }
+
+            container.innerHTML = "";
+            groupKeys.forEach(gid => {
+                const groupNum = parseInt(gid) + 1;
+                const btn = document.createElement('button');
+                btn.id = `tab-${gid}`;
+                btn.onclick = () => selectGroup(parseInt(gid));
+                btn.textContent = `${groupNum}조`;
+                btn.className = "min-w-[70px] px-4 py-3 text-center transition-all border-b-4 border-transparent text-gray-400 hover:bg-gray-50 flex-shrink-0";
+                container.appendChild(btn);
+            });
+            
+            if(!globalData.groups[currentGroup]) {
+                currentGroup = groupKeys.length > 0 ? parseInt(groupKeys[0]) : 0;
+            }
+        };
+
+        window.renderUI = function() {
+            if (!globalData) return;
+            const parList = COURSES[currentCourse].pars;
+            
+            document.getElementById('currentHoleDisplay').innerText = `HOLE ${currentHole}`;
+            document.getElementById('currentParDisplay').innerText = `Par ${parList[currentHole-1]}`;
+
+            const groupKeys = Object.keys(globalData.groups || {});
+            groupKeys.forEach(gid => {
+                const btn = document.getElementById(`tab-${gid}`);
+                if(btn) {
+                    if(parseInt(gid) === currentGroup) {
+                        btn.className = "min-w-[70px] px-4 py-3 text-center font-bold text-green-800 border-b-4 border-green-600 bg-green-50 transition-all flex-shrink-0";
+                        btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    } else {
+                        btn.className = "min-w-[70px] px-4 py-3 text-center text-gray-400 hover:bg-gray-50 transition-all border-b border-gray-100 flex-shrink-0";
+                    }
+                }
+            });
+
+            const listDiv = document.getElementById('player-list');
+            listDiv.innerHTML = "";
+            const players = globalData.groups[currentGroup.toString()];
+            
+            if(!players || players.length === 0) {
+                listDiv.innerHTML = `<div class='flex flex-col items-center justify-center h-64 text-gray-400'><span class='text-4xl mb-2'>⛳</span><p class="font-bold">이 조에 선수가 없습니다</p></div>`;
+                return;
+            }
+
+            players.forEach((player, pIndex) => {
+                const score = player.scores[currentHole-1];
+                const totalScore = player.scores.reduce((a,b)=>a+b, 0);
+                
+                let scoreColor = "text-gray-800"; 
+                if(score < 0) scoreColor = "text-blue-600";
+                if(score > 0) scoreColor = "text-red-500";
+                let scoreText = score > 0 ? `+${score}` : `${score}`;
+                if(score === 0) scoreText = "0";
+
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-3 relative overflow-hidden";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-4 pl-1 pr-1">
+                        <div class="flex items-center gap-3">
+                            <div class="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-600 border border-gray-200 shadow-inner">
+                                ${player.name.slice(0,1)}
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800 text-lg leading-none mb-1">${player.name}</h3>
+                                <span class="text-xs text-white bg-gray-400 px-1.5 py-0.5 rounded-md font-medium">Hcp ${player.hcp}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] text-gray-400 uppercase font-bold tracking-wider block mb-0.5">Total Score</span>
+                            <span class="font-black text-2xl px-2 py-0.5 rounded ${totalScore > 0 ? 'text-red-500' : (totalScore < 0 ? 'text-blue-600' : 'text-gray-800')}">
+                                ${totalScore > 0 ? '+' : ''}${totalScore}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between bg-gray-50 rounded-xl p-1.5 border border-gray-200 shadow-inner">
+                        <button onclick="updateScore(${pIndex}, ${score - 1})" class="w-14 h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 text-2xl font-bold text-gray-400 active:scale-95 active:bg-gray-100 active:text-blue-500 transition-all touch-manipulation">－</button>
+                        <div class="flex-1 text-center font-black text-3xl ${scoreColor} tabular-nums">${scoreText}</div>
+                        <button onclick="updateScore(${pIndex}, ${score + 1})" class="w-14 h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 text-2xl font-bold text-gray-400 active:scale-95 active:bg-gray-100 active:text-red-500 transition-all touch-manipulation">＋</button>
+                    </div>
+                `;
+                listDiv.appendChild(card);
+            });
+        };
+
+        window.updateScore = async function(playerIndex, value) {
+            if(!globalData) return;
+            globalData.groups[currentGroup.toString()][playerIndex].scores[currentHole-1] = value;
+            renderUI(); 
+            const statusEl = document.getElementById('saveStatus');
+            statusEl.innerText = "저장중..";
+            statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-yellow-400 text-yellow-900 opacity-100 scale-100 shadow-sm";
+            try {
+                await updateDoc(matchRef, { groups: globalData.groups });
+                statusEl.innerText = "저장됨 ✅";
+                statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-green-500 text-white opacity-100 scale-100 shadow-sm transition-all";
+                setTimeout(() => {
+                    statusEl.className = "text-xs font-bold px-2 py-1 rounded opacity-0 scale-90 transition-all duration-500";
+                }, 1000);
+            } catch(e) {
+                statusEl.innerText = "오류! 🚫";
+                statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-red-600 text-white opacity-100 animate-pulse";
+            }
+        };
+
+        window.changeHole = function(d) {
+            const next = currentHole + d;
+            if(next >= 1 && next <= 18) { currentHole = next; renderUI(); window.scrollTo(0,0); }
+        };
+        window.selectGroup = function(g) { currentGroup = g; renderUI(); };
+
+        // ============================================
+        // ⚙️ 분리된 설정 시스템 (메인 -> 회원 / 경기)
+        // ============================================
+
+        // 1. 네비게이션
+        window.openSettingsMain = function() {
+            if(!globalData) return alert("로딩중...");
+            showView('main');
+            document.getElementById('settingsModal').classList.remove('hidden');
+        };
+
+        window.closeSettings = function() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        };
+
+        window.showView = function(viewName) {
+            // 모든 뷰 숨김
+            document.getElementById('viewMain').classList.add('hidden');
+            document.getElementById('viewMemberReg').classList.add('hidden');
+            document.getElementById('viewMatchSetup').classList.add('hidden');
+            document.getElementById('btnBackToMain').classList.add('hidden');
+
+            if(viewName === 'main') {
+                document.getElementById('viewMain').classList.remove('hidden');
+                document.getElementById('settingsTitle').innerText = "설정";
+            } else if(viewName === 'member') {
+                document.getElementById('viewMemberReg').classList.remove('hidden');
+                document.getElementById('settingsTitle').innerText = "회원 등록";
+                document.getElementById('btnBackToMain').classList.remove('hidden');
+            } else if(viewName === 'match') {
+                document.getElementById('viewMatchSetup').classList.remove('hidden');
+                document.getElementById('settingsTitle').innerText = "경기 설정";
+                document.getElementById('btnBackToMain').classList.remove('hidden');
+            }
+        };
+
+        // 2. 회원 등록 (Member Reg) 로직
+        window.openMemberReg = function() {
+            // DB의 memberPool을 복사해서 가져옴
+            tempMemberPool = JSON.parse(JSON.stringify(globalData.memberPool || []));
+            renderMemberPool_RegMode();
+            showView('member');
+        };
+
+        window.renderMemberPool_RegMode = function() {
+            const container = document.getElementById('regListContainer');
+            container.innerHTML = "";
+            tempMemberPool.forEach((member, idx) => {
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center bg-white p-3 rounded-lg border border-gray-200";
+                div.innerHTML = `
+                    <div><span class="font-bold">${member.name}</span> <span class="text-xs text-gray-400">Hcp ${member.hcp}</span></div>
+                    <button onclick="deleteMemberFromPool(${idx})" class="text-red-400 font-bold px-2">삭제</button>
+                `;
+                container.appendChild(div);
+            });
+        };
+
+        window.addMemberToPool = function() {
+            const name = document.getElementById('regName').value.trim();
+            const hcp = parseInt(document.getElementById('regHcp').value) || 0;
+            if(!name) return alert("이름을 입력하세요");
+            if(tempMemberPool.some(m => m.name === name)) return alert("이미 있습니다.");
+            tempMemberPool.unshift({name, hcp}); // 맨 앞에 추가
+            document.getElementById('regName').value = "";
+            document.getElementById('regHcp').value = "";
+            renderMemberPool_RegMode();
+        };
+
+        window.deleteMemberFromPool = function(idx) {
+            if(confirm("삭제하시겠습니까?")) {
+                tempMemberPool.splice(idx, 1);
+                renderMemberPool_RegMode();
+            }
+        };
+
+        window.saveMemberPool = async function() {
+            if(!confirm("회원 명부를 저장하시겠습니까?")) return;
+            try {
+                await updateDoc(matchRef, { memberPool: tempMemberPool });
+                globalData.memberPool = tempMemberPool;
+                alert("회원 명부가 저장되었습니다.");
+                showView('main');
+            } catch(e) { alert("저장 실패"); }
+        };
+
+
+        // 3. 경기 설정 (Match Setup) 로직
+        window.openMatchSetup = function() {
+            // 설정값 초기화
+            tempCourse = globalData.course || "hill";
+            tempDate = globalData.matchDate || new Date().toISOString().split('T')[0];
+            
+            // 코스 버튼 UI 설정
+            setTempCourse(tempCourse);
+            document.getElementById('matchDateInput').value = tempDate;
+
+            // 전체 회원 풀을 가져와서, 현재 그룹 배정 상태를 매핑
+            tempMatchMembers = [];
+            const pool = globalData.memberPool || [];
+            
+            pool.forEach(member => {
+                let assigned = null;
+                if(globalData.groups) {
+                    Object.keys(globalData.groups).forEach(gid => {
+                        if(globalData.groups[gid].some(p => p.name === member.name)) {
+                            assigned = parseInt(gid) + 1;
+                        }
+                    });
+                }
+                tempMatchMembers.push({ ...member, assignedGroup: assigned });
+            });
+
+            renderMatchList();
+            showView('match');
+        };
+
+        window.setTempCourse = function(cName) {
+            tempCourse = cName;
+            const btnHill = document.getElementById('btn-hill');
+            const btnLake = document.getElementById('btn-lake');
+            if(cName === 'hill') {
+                btnHill.className = "flex-1 py-2 rounded-lg border-2 border-green-600 bg-green-50 text-green-700 font-bold text-sm shadow-sm";
+                btnLake.className = "flex-1 py-2 rounded-lg border border-gray-200 text-gray-400 font-medium text-sm";
+            } else {
+                btnHill.className = "flex-1 py-2 rounded-lg border border-gray-200 text-gray-400 font-medium text-sm";
+                btnLake.className = "flex-1 py-2 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-700 font-bold text-sm shadow-sm";
+            }
+        };
+
+        window.renderMatchList = function() {
+            const container = document.getElementById('matchListContainer');
+            container.innerHTML = "";
+            
+            // 배정된 사람을 위로 올리고 싶으면 sort 사용 (선택사항)
+            // tempMatchMembers.sort((a,b) => (b.assignedGroup || 0) - (a.assignedGroup || 0));
+
+            tempMatchMembers.forEach((member, index) => {
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between bg-white p-3 rounded-xl border border-gray-200 shadow-sm";
+                
+                let grpNum = member.assignedGroup || 0;
+                let grpText = grpNum > 0 ? `${grpNum}조` : "미참석";
+                let grpColor = grpNum > 0 ? "text-green-700 font-bold" : "text-gray-400";
+
+                div.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="font-bold text-gray-800">${member.name}</span>
+                        <span class="text-xs text-gray-400">Hcp ${member.hcp}</span>
+                    </div>
+                    <div class="flex items-center border rounded-lg bg-white overflow-hidden">
+                        <button onclick="changeGroupInMatch(${index}, -1)" class="px-3 py-2 bg-gray-50 text-gray-500 hover:bg-gray-100 border-r">－</button>
+                        <span class="w-16 text-center text-sm ${grpColor}">${grpText}</span>
+                        <button onclick="changeGroupInMatch(${index}, 1)" class="px-3 py-2 bg-gray-50 text-green-600 hover:bg-green-50 border-l">＋</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        };
+
+        window.changeGroupInMatch = function(index, delta) {
+            let current = tempMatchMembers[index].assignedGroup || 0;
+            let next = current + delta;
+            if(next < 0) next = 0;
+            tempMatchMembers[index].assignedGroup = next === 0 ? null : next;
+            renderMatchList();
+        };
+
+        window.saveMatchSetup = async function() {
+            if(!confirm("경기 설정을 적용하시겠습니까?")) return;
+            
+            // 날짜 가져오기
+            tempDate = document.getElementById('matchDateInput').value;
+
+            // 새 그룹 데이터 생성
+            const newGroups = {};
+            const oldScoresMap = {};
+            if(globalData.groups) {
+                Object.values(globalData.groups).forEach(grp => {
+                    grp.forEach(p => oldScoresMap[p.name] = p.scores);
+                });
+            }
+
+            tempMatchMembers.forEach(m => {
+                if(m.assignedGroup > 0) {
+                    const gid = (m.assignedGroup - 1).toString();
+                    if(!newGroups[gid]) newGroups[gid] = [];
+                    
+                    const savedScores = oldScoresMap[m.name] || Array(18).fill(0);
+                    newGroups[gid].push({
+                        name: m.name,
+                        hcp: m.hcp,
+                        scores: savedScores
+                    });
+                }
+            });
+
+            try {
+                await updateDoc(matchRef, {
+                    matchDate: tempDate,
+                    course: tempCourse,
+                    groups: newGroups
+                });
+                // 로컬 반영
+                globalData.matchDate = tempDate;
+                globalData.course = tempCourse;
+                globalData.groups = newGroups;
+
+                document.getElementById('headerDate').innerText = tempDate;
+                document.getElementById('headerCourseName').innerText = COURSES[tempCourse].name;
+                
+                renderTabs();
+                renderUI();
+                alert("경기 설정이 적용되었습니다.");
+                closeSettings();
+            } catch(e) { alert("저장 실패"); }
+        };
+    </script>
+</body>
+</html>
