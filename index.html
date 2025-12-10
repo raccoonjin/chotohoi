@@ -3,51 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>롱탄 골프 모임 (Live)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>롱탄 골프 모임</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="롱탄골프">
+    
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1202/1202125.png">
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/1202/1202125.png">
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+    
     <style>
-        body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+        /* 터치 반응 속도 개선 및 드래그 방지 */
+        body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
         .score-btn:active { transform: scale(0.95); }
         .bg-grass { background-color: #f0fdf4; }
+        /* 스무스한 애니메이션 */
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
     </style>
 </head>
-<body class="bg-grass h-screen flex flex-col font-sans">
+<body class="bg-grass h-screen flex flex-col font-sans overflow-hidden">
 
-    <header class="bg-green-800 text-white p-4 shadow-lg sticky top-0 z-50">
+    <header class="bg-green-800 text-white p-4 pb-2 shadow-lg sticky top-0 z-50 pt-safe-top">
         <div class="flex justify-between items-center mb-3">
-            <select id="courseSelect" onchange="changeCourse()" class="bg-green-900 text-white font-bold border border-green-600 rounded px-2 py-1 text-sm outline-none">
-                <option value="hill">LONG THANH - HILL</option>
-                <option value="lake">LONG THANH - LAKE</option>
-            </select>
-            <span class="text-xs bg-red-600 text-white font-bold px-2 py-1 rounded animate-pulse">LIVE 🔴</span>
+            <div class="flex items-center gap-2">
+                <select id="courseSelect" onchange="changeCourse()" class="bg-green-900 text-white font-bold border border-green-600 rounded px-2 py-1 text-sm outline-none shadow-sm">
+                    <option value="hill">HILL 코스</option>
+                    <option value="lake">LAKE 코스</option>
+                </select>
+                <span id="saveStatus" class="text-xs font-bold px-2 py-1 rounded opacity-0 transition-all transform scale-90">대기</span>
+            </div>
+            <span class="text-xs bg-red-600 text-white font-bold px-2 py-1 rounded animate-pulse shadow-md">LIVE 🔴</span>
         </div>
         
-        <div class="flex justify-between items-center bg-green-700 rounded-lg p-2 shadow-inner">
-            <button onclick="changeHole(-1)" class="w-10 h-10 flex items-center justify-center font-bold text-xl active:bg-green-800 rounded">◀</button>
+        <div class="flex justify-between items-center bg-green-700 rounded-xl p-2 shadow-inner border border-green-600">
+            <button onclick="changeHole(-1)" class="w-12 h-10 flex items-center justify-center font-bold text-2xl active:bg-green-800 rounded-lg text-green-100">◀</button>
             <div class="text-center">
-                <span class="text-2xl font-black block tracking-widest" id="currentHoleDisplay">HOLE 1</span>
+                <span class="text-2xl font-black block tracking-widest leading-none drop-shadow-md" id="currentHoleDisplay">HOLE 1</span>
                 <span class="text-sm text-green-200 font-medium" id="currentParDisplay">Par 4</span>
             </div>
-            <button onclick="changeHole(1)" class="w-10 h-10 flex items-center justify-center font-bold text-xl active:bg-green-800 rounded">▶</button>
+            <button onclick="changeHole(1)" class="w-12 h-10 flex items-center justify-center font-bold text-2xl active:bg-green-800 rounded-lg text-green-100">▶</button>
         </div>
     </header>
 
-    <div class="flex bg-white border-b border-green-100 shadow-sm">
+    <div class="flex bg-white border-b border-green-100 shadow-sm z-40">
         <button onclick="selectGroup(0)" id="tab-0" class="flex-1 py-3 text-center font-bold text-green-800 border-b-4 border-green-600 bg-green-50 transition-all">1조</button>
         <button onclick="selectGroup(1)" id="tab-1" class="flex-1 py-3 text-center text-gray-400 hover:bg-gray-50 transition-all">2조</button>
         <button onclick="selectGroup(2)" id="tab-2" class="flex-1 py-3 text-center text-gray-400 hover:bg-gray-50 transition-all">3조</button>
     </div>
 
-    <div id="player-list" class="flex-1 overflow-y-auto p-3 space-y-4 pb-24">
-        <div class="text-center text-gray-500 mt-20">
-            <p class="text-lg font-bold">데이터를 불러오는 중...</p>
+    <div id="player-list" class="flex-1 overflow-y-auto p-3 space-y-3 pb-32 overscroll-contain">
+        <div class="flex flex-col items-center justify-center h-64 text-gray-400">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600 mb-4"></div>
+            <p class="font-bold">스코어 카드 불러오는 중...</p>
         </div>
     </div>
 
-    <nav class="bg-white border-t flex justify-around py-3 pb-6 sticky bottom-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40">
-        <div class="text-center text-green-700 cursor-pointer"><span class="text-2xl block mb-1">✍️</span><span class="text-xs font-bold">기록</span></div>
-        <div class="text-center text-gray-400 cursor-pointer" onclick="alert('경기 종료 후 제공됩니다')"><span class="text-2xl block mb-1">🏆</span><span class="text-xs">랭킹</span></div>
-        <div class="text-center text-gray-400 cursor-pointer" onclick="alert('관리자 전용입니다')"><span class="text-2xl block mb-1">⚙️</span><span class="text-xs">설정</span></div>
+    <nav class="bg-white border-t flex justify-around py-3 pb-8 sticky bottom-0 shadow-[0_-4px_15px_-3px_rgba(0,0,0,0.1)] z-50">
+        <div class="text-center text-green-700 cursor-pointer transform scale-105 transition-transform"><span class="text-2xl block mb-1">✍️</span><span class="text-xs font-bold">기록</span></div>
+        <div class="text-center text-gray-300 cursor-pointer hover:text-gray-500 transition-colors" onclick="alert('경기 종료 후 제공됩니다')"><span class="text-2xl block mb-1">🏆</span><span class="text-xs">랭킹</span></div>
+        <div class="text-center text-gray-300 cursor-pointer hover:text-gray-500 transition-colors" onclick="alert('관리자 전용입니다')"><span class="text-2xl block mb-1">⚙️</span><span class="text-xs">설정</span></div>
     </nav>
 
     <script type="module">
@@ -55,7 +72,7 @@
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // ========================================================
-        // 선생님의 API Key를 이미 적용했습니다 (수정 불필요)
+        // [설정] 선생님의 Firebase 설정값 (그대로 사용)
         // ========================================================
         const firebaseConfig = {
             apiKey: "AIzaSyDBxfI5ufgfTKYGgLSeoQXwv2_MsAj_n-w",
@@ -69,17 +86,20 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
+        // 코스 데이터
         const COURSES = {
             hill: { name: "Hill Course", pars: [4, 4, 4, 3, 5, 4, 5, 3, 4, 4, 5, 3, 4, 4, 5, 4, 3, 4] },
             lake: { name: "Lake Course", pars: [4, 4, 3, 5, 4, 5, 4, 3, 4, 4, 5, 4, 4, 3, 4, 3, 5, 4] }
         };
 
+        // 전역 변수
         let currentHole = 1;
         let currentGroup = 0;
         let currentCourse = "hill";
         const matchId = "match_2025_05_20"; 
         let globalData = null;
 
+        // DB 연결
         const matchRef = doc(db, "matches", matchId);
         
         onSnapshot(matchRef, (docSnap) => {
@@ -95,6 +115,7 @@
             }
         });
 
+        // 초기 데이터 생성 (객체 구조 사용)
         async function createInitialData() {
             const initData = {
                 course: "hill",
@@ -114,9 +135,10 @@
                 }
             };
             try { await setDoc(matchRef, initData); } 
-            catch (e) { console.error(e); }
+            catch (e) { console.error("초기화 실패", e); }
         }
 
+        // UI 렌더링 함수
         window.renderUI = function() {
             if (!globalData) return;
 
@@ -124,6 +146,7 @@
             document.getElementById('currentHoleDisplay').innerText = `HOLE ${currentHole}`;
             document.getElementById('currentParDisplay').innerText = `Par ${parList[currentHole-1]}`;
 
+            // 탭 활성화 상태
             [0, 1, 2].forEach(idx => {
                 const btn = document.getElementById(`tab-${idx}`);
                 if(idx === currentGroup) {
@@ -135,10 +158,10 @@
 
             const listDiv = document.getElementById('player-list');
             listDiv.innerHTML = "";
-            const players = globalData.groups[currentGroup.toString()];
             
+            const players = globalData.groups[currentGroup.toString()];
             if(!players || players.length === 0) {
-                listDiv.innerHTML = "<div class='text-center text-gray-400 mt-20'>이 조에는 선수가 없습니다.</div>";
+                listDiv.innerHTML = "<div class='flex flex-col items-center justify-center h-40 text-gray-400'><span class='text-4xl mb-2'>🏌️</span><p>선수가 없습니다</p></div>";
                 return;
             }
 
@@ -147,47 +170,48 @@
                 const totalScore = player.scores.reduce((a,b)=>a+b, 0);
                 
                 const card = document.createElement('div');
-                card.className = "bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-3";
+                card.className = "bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-3 relative overflow-hidden";
                 
-                // 점수별 색상 (파=회색, 언더=파랑, 오버=빨강)
+                // 점수별 색상 처리
                 let scoreColor = "text-gray-800"; 
                 if(score < 0) scoreColor = "text-blue-600";
                 if(score > 0) scoreColor = "text-red-500";
                 
-                // 점수 텍스트 (예: +2, 0, -1)
-                const scoreText = score > 0 ? `+${score}` : `${score}`;
+                // 점수 텍스트 처리 (0은 E로 표시하거나 그냥 0)
+                let scoreText = score > 0 ? `+${score}` : `${score}`;
+                if(score === 0) scoreText = "0"; // 파
 
                 card.innerHTML = `
-                    <div class="flex justify-between items-center mb-4">
+                    <div class="flex justify-between items-center mb-4 pl-1 pr-1">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-600 border border-gray-200">
+                            <div class="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-600 border border-gray-200 shadow-inner">
                                 ${player.name.slice(0,1)}
                             </div>
                             <div>
-                                <h3 class="font-bold text-gray-800 text-lg leading-none">${player.name}</h3>
-                                <span class="text-xs text-gray-400">Hcp ${player.hcp}</span>
+                                <h3 class="font-bold text-gray-800 text-lg leading-none mb-1">${player.name}</h3>
+                                <span class="text-xs text-white bg-gray-400 px-1.5 py-0.5 rounded-md font-medium">Hcp ${player.hcp}</span>
                             </div>
                         </div>
                         <div class="text-right">
-                            <span class="text-xs text-gray-400 block mb-0.5">Total</span>
-                            <span class="font-black text-xl px-2 py-0.5 rounded ${totalScore > 0 ? 'text-red-500 bg-red-50' : (totalScore < 0 ? 'text-blue-600 bg-blue-50' : 'text-gray-700 bg-gray-100')}">
+                            <span class="text-[10px] text-gray-400 uppercase font-bold tracking-wider block mb-0.5">Total Score</span>
+                            <span class="font-black text-2xl px-2 py-0.5 rounded ${totalScore > 0 ? 'text-red-500' : (totalScore < 0 ? 'text-blue-600' : 'text-gray-800')}">
                                 ${totalScore > 0 ? '+' : ''}${totalScore}
                             </span>
                         </div>
                     </div>
                     
-                    <div class="flex items-center justify-between bg-gray-50 rounded-xl p-1 border border-gray-200">
+                    <div class="flex items-center justify-between bg-gray-50 rounded-xl p-1.5 border border-gray-200 shadow-inner">
                         <button onclick="updateScore(${pIndex}, ${score - 1})" 
-                            class="w-16 h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 text-2xl font-bold text-gray-400 active:scale-95 active:bg-gray-100 transition-all">
+                            class="w-14 h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 text-2xl font-bold text-gray-400 active:scale-95 active:bg-gray-100 active:text-blue-500 transition-all touch-manipulation">
                             －
                         </button>
                         
-                        <div class="flex-1 text-center font-black text-3xl ${scoreColor}">
+                        <div class="flex-1 text-center font-black text-3xl ${scoreColor} tabular-nums">
                             ${scoreText}
                         </div>
                         
                         <button onclick="updateScore(${pIndex}, ${score + 1})" 
-                            class="w-16 h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 text-2xl font-bold text-red-400 active:scale-95 active:bg-gray-100 transition-all">
+                            class="w-14 h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 text-2xl font-bold text-gray-400 active:scale-95 active:bg-gray-100 active:text-red-500 transition-all touch-manipulation">
                             ＋
                         </button>
                     </div>
@@ -196,11 +220,36 @@
             });
         };
 
+        // 점수 저장 함수 (상태 표시등 기능 추가)
         window.updateScore = async function(playerIndex, value) {
             if(!globalData) return;
+            
+            // 1. 즉시 화면 반영 (속도감 향상)
             globalData.groups[currentGroup.toString()][playerIndex].scores[currentHole-1] = value;
             renderUI(); 
-            try { await updateDoc(matchRef, { groups: globalData.groups }); } catch(e) {}
+            
+            // 2. 상태 표시: 저장중 (노란색)
+            const statusEl = document.getElementById('saveStatus');
+            statusEl.innerText = "저장중..";
+            statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-yellow-400 text-yellow-900 opacity-100 scale-100 shadow-sm";
+
+            try {
+                // 3. 실제 DB 저장
+                await updateDoc(matchRef, { groups: globalData.groups });
+                
+                // 4. 저장 완료 (초록색) -> 1초 뒤 사라짐
+                statusEl.innerText = "저장됨 ✅";
+                statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-green-500 text-white opacity-100 scale-100 shadow-sm transition-all";
+                setTimeout(() => {
+                    statusEl.className = "text-xs font-bold px-2 py-1 rounded opacity-0 scale-90 transition-all duration-500";
+                }, 1000);
+
+            } catch(e) {
+                console.error("저장 실패", e);
+                statusEl.innerText = "오류! 🚫";
+                statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-red-600 text-white opacity-100 animate-pulse";
+                alert("인터넷 연결을 확인해주세요. 점수가 서버에 저장되지 않았습니다.");
+            }
         };
 
         window.changeHole = function(direction) {
