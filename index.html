@@ -14,11 +14,14 @@
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
     
     <style>
-        /* 터치감 개선 및 선택 방지 */
         body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
         .score-btn:active { transform: scale(0.95); }
         .bg-grass { background-color: #f0fdf4; }
         .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+        
+        /* 탭 가로 스크롤 숨김 처리 */
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-grass h-screen flex flex-col font-sans overflow-hidden">
@@ -26,10 +29,9 @@
     <header class="bg-green-800 text-white p-4 pb-2 shadow-lg sticky top-0 z-50 pt-safe-top">
         <div class="flex justify-between items-center mb-3">
             <div class="flex items-center gap-2">
-                <select id="courseSelect" onchange="changeCourse()" class="bg-green-900 text-white font-bold border border-green-600 rounded px-2 py-1 text-sm outline-none shadow-sm">
-                    <option value="hill">HILL 코스</option>
-                    <option value="lake">LAKE 코스</option>
-                </select>
+                <div class="bg-green-900 px-3 py-1 rounded text-sm font-bold border border-green-600 shadow-sm" id="headerCourseName">
+                    HILL 코스
+                </div>
                 <span id="saveStatus" class="text-xs font-bold px-2 py-1 rounded opacity-0 transition-all transform scale-90">대기</span>
             </div>
             <span class="text-xs bg-red-600 text-white font-bold px-2 py-1 rounded animate-pulse shadow-md">LIVE 🔴</span>
@@ -45,16 +47,14 @@
         </div>
     </header>
 
-    <div class="flex bg-white border-b border-green-100 shadow-sm z-40">
-        <button onclick="selectGroup(0)" id="tab-0" class="flex-1 py-3 text-center font-bold text-green-800 border-b-4 border-green-600 bg-green-50 transition-all">1조</button>
-        <button onclick="selectGroup(1)" id="tab-1" class="flex-1 py-3 text-center text-gray-400 hover:bg-gray-50 transition-all">2조</button>
-        <button onclick="selectGroup(2)" id="tab-2" class="flex-1 py-3 text-center text-gray-400 hover:bg-gray-50 transition-all">3조</button>
+    <div id="tabsContainer" class="flex bg-white border-b border-green-100 shadow-sm z-40 overflow-x-auto hide-scroll whitespace-nowrap px-1">
+        <div class="flex-1 py-3 text-center text-gray-400 text-sm">조를 편성해주세요</div>
     </div>
 
     <div id="player-list" class="flex-1 overflow-y-auto p-3 space-y-3 pb-32 overscroll-contain">
         <div class="flex flex-col items-center justify-center h-64 text-gray-400">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600 mb-4"></div>
-            <p class="font-bold">새 경기장 만드는 중...</p>
+            <p class="font-bold">경기장 입장 중...</p>
         </div>
     </div>
 
@@ -64,16 +64,45 @@
         <div class="text-center text-gray-500 cursor-pointer hover:text-green-700 transition-colors" onclick="openSettings()"><span class="text-2xl block mb-1">⚙️</span><span class="text-xs font-bold">설정</span></div>
     </nav>
 
-    <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4 transition-opacity duration-300">
-        <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl max-h-[85vh] flex flex-col">
+    <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-2 transition-opacity duration-300">
+        <div class="bg-white w-full max-w-lg rounded-2xl p-4 shadow-2xl max-h-[90vh] flex flex-col h-full">
             <div class="flex justify-between items-center mb-4 border-b pb-3">
-                <h2 class="text-xl font-bold text-gray-800">⚙️ 경기 설정</h2>
-                <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">⚙️ 운영 설정</h2>
+                <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-600 text-3xl">&times;</button>
             </div>
-            <div class="flex-1 overflow-y-auto space-y-6 px-1" id="settingsContent"></div>
-            <div class="pt-4 mt-2 border-t flex gap-3">
-                <button onclick="closeSettings()" class="flex-1 py-3 rounded-xl bg-gray-100 font-bold text-gray-500 active:bg-gray-200">취소</button>
-                <button onclick="saveSettings()" class="flex-1 py-3 rounded-xl bg-green-600 font-bold text-white shadow-lg active:bg-green-700 active:scale-95 transition-transform">저장하기</button>
+            
+            <div class="flex-1 overflow-y-auto px-1 pb-4 space-y-6">
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <h3 class="font-bold text-gray-700 mb-3 text-sm">⛳ 코스 선택</h3>
+                    <div class="flex gap-2">
+                        <button onclick="setTempCourse('hill')" id="btn-hill" class="flex-1 py-3 rounded-lg border font-bold text-sm transition-all">HILL 코스</button>
+                        <button onclick="setTempCourse('lake')" id="btn-lake" class="flex-1 py-3 rounded-lg border font-bold text-sm transition-all">LAKE 코스</button>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <h3 class="font-bold text-gray-700 mb-3 text-sm">👤 선수 등록 (100명+)</h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="newMemberName" placeholder="이름" class="flex-[2] rounded-lg border-gray-300 shadow-sm text-sm p-2.5">
+                        <input type="number" id="newMemberHcp" placeholder="핸디" class="flex-1 rounded-lg border-gray-300 shadow-sm text-sm p-2.5">
+                        <button onclick="addNewMember()" class="bg-green-600 text-white px-4 rounded-lg font-bold text-xl shadow-md active:bg-green-700">+</button>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-gray-700 mb-2 text-sm flex justify-between items-center">
+                        <span>📋 전체 명부 및 조 배정</span>
+                        <span class="text-xs text-gray-400 font-normal">버튼을 눌러 조를 변경하세요</span>
+                    </h3>
+                    <div id="memberPoolList" class="space-y-2">
+                        </div>
+                </div>
+            </div>
+
+            <div class="pt-3 mt-2 border-t flex gap-3">
+                <button onclick="saveMatchSettings()" class="w-full py-4 rounded-xl bg-green-600 font-bold text-white text-lg shadow-lg active:bg-green-700 active:scale-95 transition-transform">
+                    저장 및 적용
+                </button>
             </div>
         </div>
     </div>
@@ -82,7 +111,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // 선생님의 API Key (그대로 유지)
+        // 선생님의 API Key
         const firebaseConfig = {
             apiKey: "AIzaSyDBxfI5ufgfTKYGgLSeoQXwv2_MsAj_n-w",
             authDomain: "golf-score-c61ad.firebaseapp.com",
@@ -95,89 +124,115 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 롱탄 CC 코스 정보
         const COURSES = {
-            hill: { name: "Hill Course", pars: [4, 4, 4, 3, 5, 4, 5, 3, 4, 4, 5, 3, 4, 4, 5, 4, 3, 4] },
-            lake: { name: "Lake Course", pars: [4, 4, 3, 5, 4, 5, 4, 3, 4, 4, 5, 4, 4, 3, 4, 3, 5, 4] }
+            hill: { name: "HILL 코스", pars: [4, 4, 4, 3, 5, 4, 5, 3, 4, 4, 5, 3, 4, 4, 5, 4, 3, 4] },
+            lake: { name: "LAKE 코스", pars: [4, 4, 3, 5, 4, 5, 4, 3, 4, 4, 5, 4, 4, 3, 4, 3, 5, 4] }
         };
 
-        // 상태 변수
         let currentHole = 1;
-        let currentGroup = 0;
+        let currentGroup = 0; // 0은 1조, 1은 2조...
         let currentCourse = "hill";
         
-        // [중요] 새 출발을 위해 ID를 'new_start'로 변경했습니다.
-        // 기존 꼬인 데이터와 완전히 분리됩니다.
-        const matchId = "match_new_start_v1"; 
+        // 새로운 데이터 구조 적용을 위해 ID 변경 (V2)
+        const matchId = "match_unlimited_v2"; 
         
         let globalData = null;
+        let tempCourse = "hill";
+        let tempMembers = []; 
+
         const matchRef = doc(db, "matches", matchId);
         
-        // DB 연결 리스너
         onSnapshot(matchRef, (docSnap) => {
             if (docSnap.exists()) {
                 globalData = docSnap.data();
-                // 코스 정보 동기화
                 if(globalData.course && globalData.course !== currentCourse) {
                     currentCourse = globalData.course;
-                    document.getElementById('courseSelect').value = currentCourse;
+                    document.getElementById('headerCourseName').innerText = COURSES[currentCourse].name;
                 }
+                renderTabs(); // 탭 동적 생성
                 renderUI();
             } else {
-                // 데이터가 없으면 새로 생성 (자동)
                 createInitialData();
             }
         });
 
-        // 초기 데이터 생성 함수
         async function createInitialData() {
             const initData = {
                 course: "hill",
-                groups: {
-                    "0": [
-                        { name: "김회장", hcp: 18, scores: Array(18).fill(0) },
-                        { name: "이총무", hcp: 22, scores: Array(18).fill(0) },
-                        { name: "박프로", hcp: 8, scores: Array(18).fill(0) },
-                        { name: "최이사", hcp: 15, scores: Array(18).fill(0) }
-                    ],
-                    "1": [
-                        { name: "강대표", hcp: 10, scores: Array(18).fill(0) },
-                        { name: "정전무", hcp: 14, scores: Array(18).fill(0) },
-                        { name: "한부장", hcp: 25, scores: Array(18).fill(0) }
-                    ],
-                    "2": []
-                }
+                memberPool: [], // 초기엔 빈 명부
+                // 동적 그룹: "0": [...], "1": [...] 
+                groups: {} 
             };
             try { await setDoc(matchRef, initData); } 
             catch (e) { console.error("초기화 실패", e); }
         }
 
-        // 화면 그리기 (핵심 로직)
+        // ★ 동적 탭 생성 함수 (핵심)
+        window.renderTabs = function() {
+            const container = document.getElementById('tabsContainer');
+            if(!globalData || !globalData.groups) return;
+
+            // 그룹 키들을 숫자 순서대로 정렬
+            const groupKeys = Object.keys(globalData.groups).sort((a,b) => parseInt(a) - parseInt(b));
+            
+            if(groupKeys.length === 0) {
+                container.innerHTML = `<div class="flex-1 py-3 text-center text-gray-400 text-sm">설정에서 조를 편성해주세요</div>`;
+                return;
+            }
+
+            container.innerHTML = "";
+            groupKeys.forEach(gid => {
+                const groupNum = parseInt(gid) + 1; // 0->1조
+                const btn = document.createElement('button');
+                btn.id = `tab-${gid}`;
+                btn.onclick = () => selectGroup(parseInt(gid));
+                btn.textContent = `${groupNum}조`;
+                
+                // 기본 스타일 (나중에 renderUI에서 활성/비활성 처리)
+                btn.className = "min-w-[80px] px-4 py-3 text-center transition-all border-b-4 border-transparent text-gray-400 hover:bg-gray-50 flex-shrink-0";
+                
+                container.appendChild(btn);
+            });
+            
+            // 현재 선택된 조가 사라졌으면 0번으로 리셋
+            if(!globalData.groups[currentGroup]) {
+                currentGroup = groupKeys.length > 0 ? parseInt(groupKeys[0]) : 0;
+            }
+        };
+
         window.renderUI = function() {
             if (!globalData) return;
             const parList = COURSES[currentCourse].pars;
             
-            // 상단 정보
             document.getElementById('currentHoleDisplay').innerText = `HOLE ${currentHole}`;
             document.getElementById('currentParDisplay').innerText = `Par ${parList[currentHole-1]}`;
 
-            // 탭 스타일
-            [0, 1, 2].forEach(idx => {
-                const btn = document.getElementById(`tab-${idx}`);
-                if(idx === currentGroup) {
-                    btn.className = "flex-1 py-3 text-center font-bold text-green-800 border-b-4 border-green-600 bg-green-50 transition-all";
-                } else {
-                    btn.className = "flex-1 py-3 text-center text-gray-400 hover:bg-gray-50 transition-all border-b border-gray-100";
+            // 탭 활성화 스타일 업데이트
+            const groupKeys = Object.keys(globalData.groups || {});
+            groupKeys.forEach(gid => {
+                const btn = document.getElementById(`tab-${gid}`);
+                if(btn) {
+                    if(parseInt(gid) === currentGroup) {
+                        btn.className = "min-w-[80px] px-4 py-3 text-center font-bold text-green-800 border-b-4 border-green-600 bg-green-50 transition-all flex-shrink-0";
+                        // 활성화된 탭이 보이도록 스크롤 이동
+                        btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    } else {
+                        btn.className = "min-w-[80px] px-4 py-3 text-center text-gray-400 hover:bg-gray-50 transition-all border-b border-gray-100 flex-shrink-0";
+                    }
                 }
             });
 
-            // 리스트 생성
             const listDiv = document.getElementById('player-list');
             listDiv.innerHTML = "";
+            
             const players = globalData.groups[currentGroup.toString()];
             
             if(!players || players.length === 0) {
-                listDiv.innerHTML = "<div class='flex flex-col items-center justify-center h-40 text-gray-400'><span class='text-4xl mb-2'>🏌️</span><p>선수가 없습니다</p></div>";
+                listDiv.innerHTML = `
+                    <div class='flex flex-col items-center justify-center h-64 text-gray-400'>
+                        <span class='text-4xl mb-2'>⛳</span>
+                        <p class="font-bold">이 조에 선수가 없습니다</p>
+                    </div>`;
                 return;
             }
 
@@ -188,7 +243,6 @@
                 let scoreColor = "text-gray-800"; 
                 if(score < 0) scoreColor = "text-blue-600";
                 if(score > 0) scoreColor = "text-red-500";
-                
                 let scoreText = score > 0 ? `+${score}` : `${score}`;
                 if(score === 0) scoreText = "0";
 
@@ -222,18 +276,14 @@
             });
         };
 
-        // 점수 저장 함수
         window.updateScore = async function(playerIndex, value) {
             if(!globalData) return;
             globalData.groups[currentGroup.toString()][playerIndex].scores[currentHole-1] = value;
-            renderUI(); // 1. 화면 먼저 갱신
-            
+            renderUI(); 
             const statusEl = document.getElementById('saveStatus');
             statusEl.innerText = "저장중..";
             statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-yellow-400 text-yellow-900 opacity-100 scale-100 shadow-sm";
-            
             try {
-                // 2. DB 저장
                 await updateDoc(matchRef, { groups: globalData.groups });
                 statusEl.innerText = "저장됨 ✅";
                 statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-green-500 text-white opacity-100 scale-100 shadow-sm transition-all";
@@ -241,74 +291,178 @@
                     statusEl.className = "text-xs font-bold px-2 py-1 rounded opacity-0 scale-90 transition-all duration-500";
                 }, 1000);
             } catch(e) {
-                console.error(e);
                 statusEl.innerText = "오류! 🚫";
                 statusEl.className = "text-xs font-bold px-2 py-1 rounded bg-red-600 text-white opacity-100 animate-pulse";
             }
         };
 
-        // 네비게이션 함수들
         window.changeHole = function(d) {
             const next = currentHole + d;
             if(next >= 1 && next <= 18) { currentHole = next; renderUI(); window.scrollTo(0,0); }
         };
         window.selectGroup = function(g) { currentGroup = g; renderUI(); };
-        window.changeCourse = async function() {
-            const sel = document.getElementById('courseSelect').value;
-            currentCourse = sel; renderUI(); await updateDoc(matchRef, { course: sel });
-        }
 
-        // --- 설정(관리자) 팝업 함수 ---
+        // ============================================
+        // ⚙️ V2 설정 시스템 (가변 조 편성 지원)
+        // ============================================
+
         window.openSettings = function() {
-            if(!globalData) return alert("데이터 준비중...");
-            const content = document.getElementById('settingsContent');
-            content.innerHTML = "";
+            if(!globalData) return alert("데이터 로딩 중입니다.");
+            tempCourse = globalData.course || "hill";
+            window.setTempCourse(tempCourse);
+
+            tempMembers = [];
+            const pool = globalData.memberPool || [];
             
-            ["0", "1", "2"].forEach(groupId => {
-                const groupData = globalData.groups[groupId];
-                const groupDiv = document.createElement('div');
-                groupDiv.className = "bg-gray-50 p-4 rounded-xl border border-gray-200";
-                let html = `<h3 class="font-bold text-gray-700 mb-2">${parseInt(groupId)+1}조 선수 관리</h3>`;
-                for(let i=0; i<4; i++) {
-                    const player = groupData[i] || { name: "", hcp: 0 };
-                    html += `
-                        <div class="flex gap-2 mb-2">
-                            <input type="text" placeholder="이름" value="${player.name}" id="name-${groupId}-${i}" class="flex-grow rounded-lg border-gray-300 shadow-sm text-sm focus:border-green-500 focus:ring-green-500">
-                            <input type="number" placeholder="Hcp" value="${player.hcp}" id="hcp-${groupId}-${i}" class="w-16 rounded-lg border-gray-300 shadow-sm text-sm focus:border-green-500 focus:ring-green-500">
-                        </div>
-                    `;
+            // 기존 조 배정 상태 확인
+            pool.forEach(member => {
+                let assigned = null; // null은 미배정
+                if(globalData.groups) {
+                    Object.keys(globalData.groups).forEach(gid => {
+                        if(globalData.groups[gid].some(p => p.name === member.name)) {
+                            assigned = parseInt(gid) + 1; // 0번방 -> 1조
+                        }
+                    });
                 }
-                groupDiv.innerHTML = html;
-                content.appendChild(groupDiv);
+                tempMembers.push({ ...member, assignedGroup: assigned });
             });
+
+            renderMemberPoolList();
             document.getElementById('settingsModal').classList.remove('hidden');
         };
 
-        window.closeSettings = function() { document.getElementById('settingsModal').classList.add('hidden'); };
+        window.closeSettings = function() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        };
 
-        window.saveSettings = async function() {
-            const newGroups = JSON.parse(JSON.stringify(globalData.groups)); 
-            ["0", "1", "2"].forEach(groupId => {
-                const newGroupList = [];
-                for(let i=0; i<4; i++) {
-                    const name = document.getElementById(`name-${groupId}-${i}`).value.trim();
-                    const hcp = parseInt(document.getElementById(`hcp-${groupId}-${i}`).value) || 0;
-                    if(name) {
-                        const oldPlayer = globalData.groups[groupId][i];
-                        const scores = oldPlayer ? oldPlayer.scores : Array(18).fill(0);
-                        newGroupList.push({ name, hcp, scores });
-                    }
-                }
-                newGroups[groupId] = newGroupList;
+        window.setTempCourse = function(cName) {
+            tempCourse = cName;
+            const btnHill = document.getElementById('btn-hill');
+            const btnLake = document.getElementById('btn-lake');
+            if(cName === 'hill') {
+                btnHill.className = "flex-1 py-3 rounded-lg border-2 border-green-600 bg-green-50 text-green-700 font-bold text-sm shadow-sm transition-all";
+                btnLake.className = "flex-1 py-3 rounded-lg border border-gray-200 text-gray-400 font-medium text-sm transition-all";
+            } else {
+                btnHill.className = "flex-1 py-3 rounded-lg border border-gray-200 text-gray-400 font-medium text-sm transition-all";
+                btnLake.className = "flex-1 py-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-700 font-bold text-sm shadow-sm transition-all";
+            }
+        }
+
+        window.addNewMember = function() {
+            const name = document.getElementById('newMemberName').value.trim();
+            const hcp = parseInt(document.getElementById('newMemberHcp').value) || 0;
+            if(!name) return alert("이름을 입력해주세요.");
+            if(tempMembers.some(m => m.name === name)) return alert("이미 등록된 이름입니다.");
+            
+            // 새 멤버는 맨 앞에 추가
+            tempMembers.unshift({ name, hcp, assignedGroup: null });
+            document.getElementById('newMemberName').value = "";
+            document.getElementById('newMemberHcp').value = "";
+            renderMemberPoolList();
+        }
+
+        // 회원 리스트 그리기 (가변 조 편성 UI)
+        window.renderMemberPoolList = function() {
+            const container = document.getElementById('memberPoolList');
+            container.innerHTML = "";
+
+            tempMembers.forEach((member, index) => {
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between bg-white p-3 rounded-xl border border-gray-200 shadow-sm";
+                
+                // 조 표시 (미배정=0 or null)
+                let grpNum = member.assignedGroup || 0;
+                let grpStyle = grpNum > 0 
+                    ? "bg-green-100 text-green-700 border-green-200" 
+                    : "bg-gray-50 text-gray-400 border-gray-200";
+                let grpText = grpNum > 0 ? `${grpNum}조` : "미배정";
+
+                div.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="font-bold text-gray-800">${member.name}</span>
+                        <span class="text-xs text-gray-400">Hcp ${member.hcp}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="removeMember(${index})" class="text-gray-300 hover:text-red-400 px-2 text-lg">×</button>
+                        
+                        <div class="flex items-center border rounded-lg bg-white overflow-hidden">
+                            <button onclick="changeGroupNum(${index}, -1)" class="px-3 py-2 bg-gray-50 text-gray-500 hover:bg-gray-100 border-r active:bg-gray-200">－</button>
+                            <span class="w-16 text-center text-sm font-bold ${grpNum > 0 ? 'text-green-700' : 'text-gray-400'}">${grpText}</span>
+                            <button onclick="changeGroupNum(${index}, 1)" class="px-3 py-2 bg-gray-50 text-green-600 hover:bg-green-50 border-l active:bg-green-100">＋</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
             });
+        }
+
+        window.removeMember = function(index) {
+            if(confirm("이 회원을 삭제하시겠습니까?")) {
+                tempMembers.splice(index, 1);
+                renderMemberPoolList();
+            }
+        }
+
+        // 조 번호 변경 (무제한 증가 가능)
+        window.changeGroupNum = function(index, delta) {
+            let current = tempMembers[index].assignedGroup || 0;
+            let next = current + delta;
+            if(next < 0) next = 0; // 0 밑으로는 안 내려감
+            
+            tempMembers[index].assignedGroup = next === 0 ? null : next;
+            renderMemberPoolList();
+        }
+
+        window.saveMatchSettings = async function() {
+            if(!confirm("설정을 저장하시겠습니까?")) return;
+
+            const newMemberPool = tempMembers.map(m => ({ name: m.name, hcp: m.hcp }));
+            
+            // 동적 그룹 생성
+            const newGroups = {};
+            
+            // 기존 점수 백업
+            const oldScoresMap = {};
+            if(globalData.groups) {
+                Object.values(globalData.groups).forEach(grp => {
+                    grp.forEach(p => oldScoresMap[p.name] = p.scores);
+                });
+            }
+
+            tempMembers.forEach(m => {
+                if(m.assignedGroup > 0) {
+                    const gid = (m.assignedGroup - 1).toString(); // 1조 -> "0"
+                    if(!newGroups[gid]) newGroups[gid] = []; // 해당 조 배열 생성
+                    
+                    const savedScores = oldScoresMap[m.name] || Array(18).fill(0);
+                    newGroups[gid].push({
+                        name: m.name,
+                        hcp: m.hcp,
+                        scores: savedScores
+                    });
+                }
+            });
+
             try {
-                await updateDoc(matchRef, { groups: newGroups });
-                globalData.groups = newGroups; 
+                await updateDoc(matchRef, {
+                    course: tempCourse,
+                    memberPool: newMemberPool,
+                    groups: newGroups
+                });
+                
+                globalData.course = tempCourse;
+                globalData.memberPool = newMemberPool;
+                globalData.groups = newGroups;
+
+                renderTabs(); // 탭 다시 그리기
                 renderUI();
                 closeSettings();
-                alert("설정이 저장되었습니다.");
-            } catch(e) { console.error(e); alert("저장 실패"); }
-        };
+                alert("설정이 완료되었습니다.");
+            } catch(e) {
+                console.error(e);
+                alert("저장 실패");
+            }
+        }
     </script>
 </body>
 </html>
